@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "overtake"
+version = "0.1.0"
+description = "Overtaking and defending in a race-track corner: optimization-based local planning vs. learned driving (ACAV project)"
+requires-python = ">=3.10"
+dependencies = ["numpy", "scipy", "matplotlib", "pyyaml"]
+
+[project.optional-dependencies]
+rl = ["gymnasium>=0.29", "stable-baselines3>=2.3", "pettingzoo>=1.24", "tensorboard"]
+dev = ["pytest", "ruff"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
