@@ -1,5 +1,5 @@
 """
-Plot the corner track with its bounds, and check the geometry helpers on its centreline (T03, T04).
+Plot the corner track with its bounds, and check the geometry helpers on its centreline.
 
     python scripts/plot_track.py                          # hairpin (R = 15 m, 180 deg)
     python scripts/plot_track.py --radius 40 --angle 90   # 90 deg corner
