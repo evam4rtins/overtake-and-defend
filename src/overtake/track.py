@@ -1,8 +1,8 @@
 """
 
-Path geometry helpers (T03) and the corner track with its Frenet frame (T04).
+Path geometry helpers and the corner track with its Frenet frame.
 
-Conventions (see types.py):
+Conventions:
 - A path is a polyline given by two arrays x, y [m].
 - Heading psi is measured counter-clockwise from the x-axis [rad].
 - Curvature is signed: positive when the path turns left, negative when it turns right [1/m].
@@ -17,7 +17,7 @@ from typing import Optional, Tuple
 import numpy as np
 
 
-# ------------------------------------ Path geometry (T03) ---------------------------------------
+# ------------------------------------ Path geometry ---------------------------------------
 def _as_path(x, y) -> Tuple[np.ndarray, np.ndarray]:
     """
     Convert x, y to two 1-D float arrays of the same length.
@@ -160,7 +160,7 @@ def _wrap(angle):
     return (np.asarray(angle) + np.pi) % (2.0 * np.pi) - np.pi
 
 
-# ------------------------------------ Corner track (T04) ---------------------------------------
+# ------------------------------------ Corner track ---------------------------------------
 class CornerTrack:
     """
     One corner: entry straight -> circular arc -> exit straight, with constant width.

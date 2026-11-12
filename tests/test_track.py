@@ -10,7 +10,7 @@ def circle(radius, turn_left=True, n=200, angle=np.pi):
     return radius * np.sin(phi), sign * radius * (1 - np.cos(phi))
 
 
-# ------------------------------------ T03: path geometry ---------------------------------------
+# ------------------------------------  path geometry ---------------------------------------
 def test_arc_length():
     assert np.allclose(arc_length([0, 3, 6], [0, 4, 8]), [0, 5, 10])
     x, y = circle(20.0)
@@ -55,7 +55,7 @@ def test_geometry_rejects_bad_input():
         heading([0], [0])
 
 
-# ------------------------------------ T04: corner track ---------------------------------------
+# ------------------------------------ corner track ---------------------------------------
 TRACKS = {
     "left": dict(l_in=250, radius=40, angle_deg=90, l_out=150, width=12),
     "right": dict(l_in=100, radius=40, angle_deg=-90, l_out=80, width=12),
