@@ -1,0 +1,144 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+
+\newcommand{\code}[1]{\texttt{#1}}
+\setlist{itemsep=2pt,topsep=3pt}
+
+\title{ACAV Project -- Summary of tasks T03 and T04\\[2pt]
+\large Path geometry, corner track and Frenet frame}
+\author{Jean}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Role in the project}
+The project studies overtaking between two cars in a single corner. Every module (speed
+profile, racing line, planners, simulator) needs a common basis: \emph{a track} and \emph{a way
+to describe a position and a path on that track}. T03 and T04 provide this basis (file
+\code{src/overtake/track.py}). They lie on the critical path: T03 $\to$ T07 $\to$ T08 $\to$
+T14 $\to$ T16 $\to \dots$
+
+\paragraph{Conventions.} SI units; heading $\psi$ measured counter-clockwise from the $x$ axis;
+signed curvature $\kappa$ (written $\rho$ in the course), positive for a left turn; Frenet frame
+$(s,d)$ with $s$ the arc length along the centreline and $d$ the lateral offset, $d>0$ to the
+left.
+
+\section{T03 -- Geometry of a path}
+\textbf{Goal.} For any path given by an ordered sequence of points $(x_i,y_i)_{i=0..N-1}$
+(centreline, racing line, overtaking candidate, lattice path), compute at each point the
+distance travelled, the heading and the curvature.
+
+\begin{itemize}
+  \item \code{arc\_length(x, y)} $\to s$: cumulative distance,
+  \[ s_0 = 0, \qquad s_{i+1} = s_i + h_i, \qquad h_i = \sqrt{(x_{i+1}-x_i)^2 + (y_{i+1}-y_i)^2}. \]
+  \item \code{heading(x, y)} $\to \psi$: at an interior point, tangent of the circle through
+  the point and its two neighbours, obtained by weighting each segment direction $\mathbf{e}$
+  by the length of the other segment:
+  $\mathbf{t}_i \propto h_i\,\mathbf{e}_{i-1} + h_{i-1}\,\mathbf{e}_i$.
+  The result is exact on straight lines and circles, even with uneven spacing. At the end
+  points we use the fact that the direction of a chord is the mean of the tangents at its two
+  ends. The heading is unwrapped (no $2\pi$ jumps).
+  \item \code{curvature(x, y)} $\to \kappa$ (slides 6b, \emph{Feasibility check}): three
+  consecutive points form a triangle with sides $a,b,c$ and area $A$. The circle through these
+  three points has radius $abc/(4A)$, hence
+  \[ \kappa_i = \frac{4A}{abc}, \qquad 2A = \Delta x_{i-1}\,\Delta y_i - \Delta y_{i-1}\,\Delta x_i
+     \quad \text{(signed cross product).} \]
+  The sign of the area gives the direction of the turn.
+\end{itemize}
+
+\paragraph{Why curvature matters.} In a corner, $a_y = v^2\kappa$. Since the tyres limit
+$a_y \le a_{y,\max}$, the curvature sets a local maximum speed
+\[ v_{\max}(s) = \sqrt{a_{y,\max}/|\kappa(s)|}, \]
+for example $15$~m/s in the hairpin ($R=15$~m, $a_{y,\max}=15$~m/s$^2$) and $24.5$~m/s for
+$R=40$~m. It is then used in:
+\begin{itemize}
+  \item \textbf{T07} (three-pass speed profile, 6a): initial guess, then sharing of the friction
+  ellipse between $a_y = v^2\kappa$ and $a_x$;
+  \item \textbf{T08} (racing line, L7): cost $J = k_l\sum \Delta s_i^2 + k_\rho \sum \kappa_i^2$;
+  \item \textbf{T16} (sigmoid, 6a): choice of the steepest feasible sigmoid;
+  \item \textbf{T19} (lattice, 6b): a node is feasible if $\kappa \le \rho_{\max}(v)
+  = \min\big(\rho_{\max,\text{steer}},\; a_{y,\max}/v^2\big)$.
+\end{itemize}
+
+\section{T04 -- Corner track and Frenet frame}
+\textbf{Goal.} Build the corner of the proposal (Section 3.1) and convert between global
+coordinates $(x,y)$ and Frenet coordinates $(s,d)$ (slides 6a). The planners reason in $(s,d)$;
+the simulator and the vehicle models work in $(x,y)$.
+
+\paragraph{\code{CornerTrack(l\_in, radius, angle\_deg, l\_out, width, ds)}.}
+Entry straight of length $L_{in}$, arc of radius $R$ and angle $\Theta$ ($>0$ for a left turn),
+exit straight $L_{out}$, constant width $w$. By default, the hairpin of the proposal: $R=15$~m,
+$\Theta=180^\circ$, $w=12$~m. We have
+\[ s_{\text{start}} = L_{in}, \qquad s_{\text{end}} = L_{in} + R|\Theta|, \qquad
+   L = s_{\text{end}} + L_{out}. \]
+The centreline is sampled every $\approx 0.5$~m in the arrays \code{s, cx, cy, psi, kappa}
+(the ``stations'' used by T07 and T08).
+
+\paragraph{Methods.}
+\begin{itemize}
+  \item \code{at\_s(s)} $\to (x, y, \psi, \kappa)$ of the centreline, analytically. With
+  $\varphi$ the angle travelled in the arc and $\sigma=\pm1$ the direction of the turn:
+  \begin{gather*}
+     x = s_{\text{before}} + R\sin\varphi + s_{\text{after}}\cos\psi, \qquad
+     y = \sigma R(1-\cos\varphi) + s_{\text{after}}\sin\psi, \\
+     \psi = \sigma\varphi, \qquad \kappa = \sigma/R \text{ in the arc, } 0 \text{ elsewhere.}
+  \end{gather*}
+  \item \code{from\_frenet(s, d)} $\to (x,y)$: the centreline point is moved by $d$ along the left
+  normal $\hat n = (-\sin\psi,\ \cos\psi)$,
+  \[ \mathbf{r}(s,d) = \mathbf{c}(s) + d\,\hat n(s). \]
+  This is the formula $\hat r(s) = r(s) + y(s)\,\hat n(s)$ of the sigmoid planner (6a) and the
+  placement of the waypoints ``on the normal, at distance $d$ from the check point'' of the
+  lattice planner (6b).
+  \item \code{to\_frenet(x, y, s\_hint)} $\to (s,d)$: each point is projected on the three
+  pieces (straight, arc, straight), the closest projection is kept, and $d$ is the component
+  along $\hat n$. In the hairpin the two straights are only $2R=30$~m apart, so a point can be
+  equally close to both. \code{s\_hint} (the $s$ of the previous time step) restricts the search
+  to $[s_{\text{hint}} \pm 20\text{ m}]$ and removes the ambiguity. Used by the simulator (T11)
+  at every step.
+  \item \code{d\_limits(car\_width, margin)}: equation (1) of the proposal,
+  $\alpha\in[\Delta\alpha, 1-\Delta\alpha]$ with $\Delta\alpha = (w_v/2+e)/w$, rewritten in $d$:
+  \[ |d| \le \frac{w}{2} - \frac{w_v}{2} - e
+     \qquad (\text{e.g. } 6 - 0.95 - 0.3 = 4.75 \text{ m}). \]
+  It bounds the racing-line optimisation (T08) and the offsets of the planners (T16, T19).
+  \item \code{bounds()}: left and right edges $\mathbf{r}(s, \pm w/2)$, for plots
+  (``inner/outer bounds'' representation of L7).
+\end{itemize}
+
+\paragraph{Two arc lengths not to confuse.} \code{track.s} measures the distance along the
+\emph{centreline} (a coordinate shared by both cars), whereas \code{arc\_length(x, y)}
+measures the distance actually travelled along a given path. A car on the inside of the
+corner travels fewer metres than \code{track.s} suggests; the speed profile must therefore use
+the length and curvature of the actual path.
+
+\section{Validation}
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Test} & \textbf{Check} \\
+\midrule
+Circle of radius $R$ & $\kappa = +1/R$ turning left, $-1/R$ turning right \\
+Straight line & $\kappa = 0$ \\
+Uneven spacing & curvature and heading still exact \\
+Track length & $L = L_{in} + R|\Theta| + L_{out}$ \\
+T03/T04 consistency & \code{curvature(cx, cy)} $\approx$ \code{kappa}, same for $s$ and $\psi$ \\
+Frenet round trip & \code{to\_frenet(from\_frenet(s, d))} $=(s,d)$ up to $10^{-9}$ \\
+Side of $d$ & $d>0$ on the left, hence the inside of a left turn \\
+Hairpin & \code{s\_hint} picks the right straight \\
+Limits & \code{d\_limits} $= \pm4.75$ m; inside edge shorter than outside edge \\
+\bottomrule
+\end{tabular}
+\end{center}
+All 26 tests pass. The script \code{scripts/plot\_track.py} plots the track, its edges, the
+limits of the car centre, the frame $(\hat t,\hat n)$, and the exact $\psi(s)$ and $\kappa(s)$
+compared with the values recomputed by T03.
+
+\end{document}
