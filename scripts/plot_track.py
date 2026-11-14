@@ -1,8 +1,7 @@
 """
 Plot the corner track with its bounds, and check the geometry helpers on its centreline.
 
-    python scripts/plot_track.py                          # hairpin (R = 15 m, 180 deg)
-    python scripts/plot_track.py --radius 40 --angle 90   # 90 deg corner
+    python scripts/plot_track.py                          
     python scripts/plot_track.py --out results/track.png  # save instead of showing
 """
 
@@ -19,8 +18,8 @@ from overtake.types import VehicleParams
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--l-in", type=float, default=250.0)
-    parser.add_argument("--radius", type=float, default=15.0)
-    parser.add_argument("--angle", type=float, default=180.0, help="corner angle [deg], positive = left")
+    parser.add_argument("--radius", type=float, default=40.0)
+    parser.add_argument("--angle", type=float, default=90.0, help="corner angle [deg], positive = left")
     parser.add_argument("--l-out", type=float, default=150.0)
     parser.add_argument("--width", type=float, default=12.0)
     parser.add_argument("--margin", type=float, default=0.3, help="safety margin to the track edge [m]")

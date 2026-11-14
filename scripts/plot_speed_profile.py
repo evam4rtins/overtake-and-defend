@@ -1,8 +1,7 @@
 """
 Plot the three passes of the speed profile on the centreline of the corner track.
 
-    python scripts/plot_speed_profile.py                          # hairpin (R = 15 m, 180 deg)
-    python scripts/plot_speed_profile.py --radius 40 --angle 90   # 90 deg corner
+    python scripts/plot_speed_profile.py
     python scripts/plot_speed_profile.py --out results/speed_profile.png
 """
 
@@ -20,8 +19,8 @@ from overtake.types import VehicleParams
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--l-in", type=float, default=250.0)
-    parser.add_argument("--radius", type=float, default=15.0)
-    parser.add_argument("--angle", type=float, default=180.0, help="corner angle [deg], positive = left")
+    parser.add_argument("--radius", type=float, default=40.0)
+    parser.add_argument("--angle", type=float, default=90.0, help="corner angle [deg], positive = left")
     parser.add_argument("--l-out", type=float, default=150.0)
     parser.add_argument("--v-start", type=float, default=60.0, help="speed at the start of the segment [m/s]")
     parser.add_argument("--out", type=Path, default=None, help="save the figure to this file")

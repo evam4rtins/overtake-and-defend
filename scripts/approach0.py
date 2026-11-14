@@ -1,13 +1,12 @@
 """
-Approach 0: analytical first estimates of the overtaking boundary (proposal, Section 5.1).
+Approach 0: analytical first estimates of the overtaking boundary.
 
 Three tables, to compare later with the simulated overtaking maps:
 1. Passing time tau = (g + L_O + L_E + m) / dv for a grip advantage and for a speed advantage.
 2. Braking: distance, later braking point, and what braking later really gains.
 3. First-guess boundary: largest initial time gap that each advantage could make up.
 
-    python scripts/approach0.py                          # hairpin (R = 15 m, 180 deg)
-    python scripts/approach0.py --radius 40 --angle 90   # 90 deg corner (numbers of the proposal)
+    python scripts/approach0.py                          
     python scripts/approach0.py --csv results/approach0.csv
 
 Model: point mass on the centreline, both cars on the same line, the opponent never in the way.
@@ -115,8 +114,8 @@ def print_table(title, header, rows):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--l-in", type=float, default=250.0)
-    parser.add_argument("--radius", type=float, default=15.0)
-    parser.add_argument("--angle", type=float, default=180.0, help="corner angle [deg], positive = left")
+    parser.add_argument("--radius", type=float, default=40.0)
+    parser.add_argument("--angle", type=float, default=90.0, help="corner angle [deg], positive = left")
     parser.add_argument("--l-out", type=float, default=150.0)
     parser.add_argument("--v-in", type=float, default=60.0, help="approach speed [m/s]")
     parser.add_argument("--gap", type=float, default=5.0, help="initial bumper-to-bumper gap g [m]")

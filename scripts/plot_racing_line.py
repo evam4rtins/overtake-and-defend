@@ -5,8 +5,7 @@ Figure 1: minimum-length, minimum-curvature and optimal lines; segment time agai
           ratio; speed profiles; g-g diagram of the optimal line.
 Figure 2: optimal lines of a baseline, a grip-limited and a power-limited car.
 
-    python scripts/plot_racing_line.py                          # hairpin (R = 15 m, 180 deg)
-    python scripts/plot_racing_line.py --radius 40 --angle 90   # 90 deg corner
+    python scripts/plot_racing_line.py                         
     python scripts/plot_racing_line.py --out results/racing_line.png   # also saves ..._cars.png
 """
 
@@ -110,8 +109,8 @@ def figure_cars(track, p, v_start, margin):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--l-in", type=float, default=250.0)
-    parser.add_argument("--radius", type=float, default=15.0)
-    parser.add_argument("--angle", type=float, default=180.0, help="corner angle [deg], positive = left")
+    parser.add_argument("--radius", type=float, default=40.0)
+    parser.add_argument("--angle", type=float, default=90.0, help="corner angle [deg], positive = left")
     parser.add_argument("--l-out", type=float, default=150.0)
     parser.add_argument("--width", type=float, default=12.0)
     parser.add_argument("--margin", type=float, default=0.3, help="safety margin to the track edge [m]")

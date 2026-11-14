@@ -165,12 +165,9 @@ class CornerTrack:
     """
     One corner: entry straight -> circular arc -> exit straight, with constant width.
 
-    The centreline starts at the origin and heads along +x. A positive angle is a left turn,
-    a negative angle a right turn. The default values are the hairpin of the proposal (R = 15 m, 180 degrees).
-
     Arrays sampled every ~ds along the centreline: s, cx, cy, psi, kappa.
 
-    Args (constructor):
+    Args:
         l_in:      float. Length of the entry straight [m].
         radius:    float. Radius R of the centreline in the arc [m]; must be > width / 2.
         angle_deg: float. Signed angle of the corner [deg], 0 < |angle| < 360; > 0 left, < 0 right.
@@ -193,7 +190,7 @@ class CornerTrack:
                     or not smaller than 360 deg, or if radius <= width / 2.
     """
 
-    def __init__(self, l_in: float = 250.0, radius: float = 15.0, angle_deg: float = 180.0,
+    def __init__(self, l_in: float = 250.0, radius: float = 40.0, angle_deg: float = 90.0,
                  l_out: float = 150.0, width: float = 12.0, ds: float = 0.5):
         if min(l_in, l_out, radius, width, ds) <= 0:
             raise ValueError("l_in, l_out, radius, width and ds must be positive.")
