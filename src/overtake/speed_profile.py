@@ -2,7 +2,7 @@
 
 Three-pass speed profile: the fastest speed a car can hold at every point of a given path.
 
-Slides 6a ("trapezoidal velocity planner"):
+Trapezoidal velocity planner:
 1. Initial guess: the highest speed each point allows on its own, v = sqrt(a_y_max / |kappa|),
    capped by the top speed and by an optional speed limit.
 2. Forward pass: starting from the entry speed, the car cannot gain speed faster than the
