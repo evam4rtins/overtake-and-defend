@@ -40,13 +40,7 @@ class CoordinatedTurn(_Predictor):
             r = st.v / st.omega
             x = st.x + r * (np.sin(psi) - np.sin(st.psi))
             y = st.y - r * (np.cos(psi) - np.cos(st.psi))
-        return Trajectory(
-            times=times,
-            x=x,
-            y=y,
-            psi=psi,
-            v=np.full_like(times, st.v)
-        )
+        return Trajectory(t=times, x=x, y=y, psi=psi, v=np.full_like(times, st.v))
 
 class ConstantVelocity(CoordinatedTurn):
     """ Straight line at constant speed: the coordinated turn with omega = 0. """
@@ -61,14 +55,8 @@ class ExactPlan(_Predictor):
         if car.plan is None:
             return CoordinatedTurn(self.horizon, self.dt).predict(car, t)
         times = self.times(t)
-        x, y, psi, v = car.plan.sample(times)
-        return Trajectory(
-            times=times,
-            x=x,
-            y=y,
-            psi=psi,
-            v=v
-        )
+        x, y, psi, v = car.plan.at_time(times)        
+        return Trajectory(t=times, x=x, y=y, psi=psi, v=v)
     
 PREDICTORS = {"constant_velocity": ConstantVelocity, "coordinated_turn": CoordinatedTurn, "exact": ExactPlan}
 

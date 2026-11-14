@@ -23,7 +23,7 @@ class RacingLineAgent:
         self.plan: Optional[Trajectory] = None
 
     def setup(self, track, car) -> None:
-        if car.globan_plan is None:
+        if car.global_plan is None:
             raise ValueError(f"RacingLineAgent needs a global plan for car '{car.name}'.")
         self.track = track
         self.params = car.params

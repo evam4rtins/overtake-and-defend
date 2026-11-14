@@ -43,6 +43,23 @@ def footprint_distance(xa, ya, psia, params_a: VehicleParams,
     clearance = np.linalg.norm(diff, axis=-1).min(axis=(1, 2)) - ra - rb
     return float(clearance[0]) if np.ndim(xa) == 0 else clearance
 
+def trajectory_clearance(traj_a: Trajectory, params_a: VehicleParams,
+                         traj_b: Trajectory, params_b: VehicleParams, dt: float = 0.05) -> float:
+    """
+    Smallest clearance between two cars following two trajectories, compared at equal times
+
+    Returns:
+        float: minimum clearance over the common time window [m] (< 0 = collision);
+               inf if the two trajectories do not overlap in time.
+    """
+    t0, t1 = max(traj_a.t[0], traj_b.t[0]), min(traj_a.t[-1], traj_b.t[-1])
+    if t1 < t0:
+        return float("inf")
+    t = np.append(np.arange(t0, t1, dt), t1)
+    xa, ya, pa, _ = traj_a.at_time(t)
+    xb, yb, pb, _ = traj_b.at_time(t)
+    return float(np.min(footprint_distance(xa, ya, pa, params_a, xb, yb, pb, params_b)))
+
 #------------------------------------- Car -------------------------------------
 
 def start_state(track: CornerTrack, s: float, d: float, v:float) -> VehicleState:
