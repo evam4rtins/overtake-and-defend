@@ -1,17 +1,14 @@
 """
 
-Racing line: the global plan of one car (proposal, Step 1).
+Racing line: the global plan of one car.
 
-Geometric approach of Lecture 7, in three steps:
+Geometric approach:
 1. Path: the lateral offsets d_i at coarse nodes along the track minimise
        J = k_l * sum(ds_i^2) + k_rho * sum(kappa_i^2)
    (length against curvature), inside the track limits. Solved with L-BFGS-B.
 2. Speed: the path is driven with the three-pass speed profile, which gives the segment time.
 3. Weights: step 1 is repeated for several ratios k_l / k_rho; the ratio with the lowest
    segment time of this car is kept.
-
-Step 1 depends only on the track and on the ratio, not on the car, so its results are cached:
-a second car on the same track only needs step 2.
 
 Conventions:
 - weight_ratio = k_l / k_rho. 0 is the minimum-curvature line, infinity the minimum-length line.
