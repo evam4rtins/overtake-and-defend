@@ -6,7 +6,7 @@ Conventions from slides:
 - friction ellipse : (a_x / a_x_max)^2 + (a_y / a_y_max)^2 <= 1
 - engine limit : when accelerating a_x <= a_engine * (1 - v / v_max)
 - point mass action : (a_x, a_y) [m/s^2, m/s^2]
-- kinmatic bicycle action : (a, delta) [m/s^2, rad]
+- kinmatic bicycle action : (delta, a) [m/s^2, rad]
 - every acceleration is projected to the friction ellipse and engine limit 
 before being applied, so no model can use more grip than the car has
 

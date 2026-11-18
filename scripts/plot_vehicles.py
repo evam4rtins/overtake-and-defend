@@ -48,7 +48,7 @@ def main():
         states = simulate(model, VehicleState(0, 0, 0, 60.0), action, dt, 500)
         t = np.arange(len(states)) * dt
         ax_v.plot(t, [s.v for s in states], label=name)
-    ax_v.set(xlabel="t [s]", ylabel="v [m/s]", title="Full braking (a_x_max = {p.a_x_max:g} m/s²)")
+    ax_v.set(xlabel="t [s]", ylabel="v [m/s]", title=f"Full braking (a_x_max = {p.a_x_max:g} m/s²)")
     ax_v.legend(fontsize=8)
 
     # g-g diagram: break while steering harder and harder
