@@ -1,7 +1,5 @@
 # overtake-and-defend
 
-test 
-
 Overtaking and defending in a race-track corner: optimization-based local planning vs. learned driving (reinforcement learning).
 Course project for *Automation and Control in Autonomous Vehicles* (ACAV).
 
