@@ -135,3 +135,16 @@ def test_path_to_trajectory(track):
     v = three_pass(track.s, track.kappa, P, V_START)
     assert traj.duration == pytest.approx(traversal_time(track.s, v), rel=5e-3)
     assert traj.v.min() == pytest.approx(np.sqrt(P.a_y_max * track.radius), rel=1e-3)
+
+
+def test_batch_of_paths_gives_the_same_profiles():
+    """ (M, N) arrays: each row is the profile of that path alone (used by the local planners). """
+    rng = np.random.default_rng(3)
+    s = np.cumsum(rng.uniform(0.5, 1.5, (5, 120)), axis=1)
+    kappa = rng.uniform(-0.03, 0.03, (5, 120))
+    v_start = rng.uniform(20.0, 60.0, 5)
+    v = three_pass(s, kappa, P, v_start, v_limit=55.0)
+    t = time_stamps(s, v, t0=1.0)
+    for m in range(5):
+        assert np.allclose(v[m], three_pass(s[m], kappa[m], P, v_start[m], v_limit=55.0))
+        assert np.allclose(t[m], time_stamps(s[m], v[m], t0=1.0))

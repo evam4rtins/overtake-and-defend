@@ -76,8 +76,8 @@ the simulator and the vehicle models work in $(x,y)$.
 
 \paragraph{\code{CornerTrack(l\_in, radius, angle\_deg, l\_out, width, ds)}.}
 Entry straight of length $L_{in}$, arc of radius $R$ and angle $\Theta$ ($>0$ for a left turn),
-exit straight $L_{out}$, constant width $w$. By default, the hairpin of the proposal: $R=15$~m,
-$\Theta=180^\circ$, $w=12$~m. We have
+exit straight $L_{out}$, constant width $w$. By default, the reference corner of the proposal: $L_{in}=250$~m, $R=40$~m,
+$\Theta=90^\circ$, $L_{out}=150$~m, $w=12$~m (the hairpin, $R=15$~m, $\Theta=180^\circ$, is still available as a parameter). We have
 \[ s_{\text{start}} = L_{in}, \qquad s_{\text{end}} = L_{in} + R|\Theta|, \qquad
    L = s_{\text{end}} + L_{out}. \]
 The centreline is sampled every $\approx 0.5$~m in the arrays \code{s, cx, cy, psi, kappa}

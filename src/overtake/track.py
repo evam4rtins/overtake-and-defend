@@ -252,7 +252,7 @@ class CornerTrack:
             x: float or np.ndarray (M,). Global x of the point(s) [m].
             y: float or np.ndarray (M,). Global y of the point(s) [m].
             Floats if s and d are scalars, arrays otherwise. With s = track.s and one d per
-            station, (x, y) is a path (e.g. a racing line) that the T03 helpers can use.
+            station, (x, y) is a path (e.g. a racing line) that the path geometry helpers can use.
         """
         cx, cy, psi, _ = self.at_s(s)
         d = np.asarray(d, dtype=float)

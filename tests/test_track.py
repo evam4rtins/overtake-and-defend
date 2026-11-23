@@ -85,7 +85,7 @@ def test_baseline_track_end_point():
 
 
 def test_sampled_centreline_matches_geometry_helpers(track):
-    """ The T03 helpers, applied to the sampled centreline, give back s, psi and kappa. """
+    """ The path geometry helpers, applied to the sampled centreline, give back s, psi and kappa. """
     assert np.allclose(arc_length(track.cx, track.cy), track.s, atol=1e-3)
     assert np.allclose(heading(track.cx, track.cy), track.psi, atol=0.02)
     # Curvature jumps at the two ends of the arc, so compare away from them.

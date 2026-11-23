@@ -15,6 +15,9 @@ Between two stations the motion is uniformly accelerated: v_next^2 = v^2 + 2 a_x
 Conventions:
 - s is the arc length along the path itself (not along the track centreline) [m].
 - kappa is the signed curvature of the path [1/m]; only its absolute value matters here.
+- three_pass and time_stamps also accept a batch of M paths with the same number of stations,
+  as arrays of shape (M, N): the stations are along the last axis. The local planners use this
+  to evaluate all their candidate paths at once.
 
 """
 
@@ -26,7 +29,7 @@ from .types import Trajectory, VehicleParams
 from .vehicles import max_longitudinal
 
 
-def three_pass(s, kappa, params: VehicleParams, v_start: float, v_limit=None, return_passes: bool = False):
+def three_pass(s, kappa, params: VehicleParams, v_start, v_limit=None, return_passes: bool = False):
     """
     Fastest feasible speed at every station of a path.
 
@@ -35,28 +38,29 @@ def three_pass(s, kappa, params: VehicleParams, v_start: float, v_limit=None, re
     the backward pass is not compatible with the entry speed.
 
     Args:
-        s: array-like of float, shape (N,). Arc length of the stations along the path [m],
-           strictly increasing.
-        kappa: array-like of float, shape (N,). Curvature of the path at each station [1/m].
+        s: array-like of float, shape (N,) or (M, N). Arc length of the stations along the path
+           [m], strictly increasing along the last axis. (M, N) = M paths evaluated at once.
+        kappa: array-like of float, same shape as s. Curvature of the path at each station [1/m].
         params: VehicleParams. Grip, engine and top speed of the car.
-        v_start: float. Speed of the car at the first station [m/s].
-        v_limit: None, float or array-like (N,). Extra speed cap [m/s] (e.g. the ACC speed).
+        v_start: float, or array-like (M,) for a batch. Speed of the car at the first station [m/s].
+        v_limit: None, float or array-like broadcastable to the shape of s. Extra speed cap [m/s]
+                 (e.g. the ACC speed, or a terminal speed).
         return_passes: bool. If True, also return the two intermediate passes (for plots).
 
     Returns:
-        v: np.ndarray of float, shape (N,). Speed at each station [m/s].
-        If return_passes is True: (v_guess, v_forward, v), three arrays of shape (N,).
+        v: np.ndarray of float, same shape as s. Speed at each station [m/s].
+        If return_passes is True: (v_guess, v_forward, v), three arrays of that shape.
 
     Raises:
-        ValueError: if s and kappa have different lengths or s is not strictly increasing.
+        ValueError: if s and kappa have different shapes or s is not strictly increasing.
     """
     s, k = np.asarray(s, dtype=float), np.abs(np.asarray(kappa, dtype=float))
-    if s.ndim != 1 or s.shape != k.shape or len(s) == 0:
-        raise ValueError("s and kappa must be non-empty 1-D arrays of the same length.")
-    ds = np.diff(s)
+    if s.ndim not in (1, 2) or s.shape != k.shape or s.shape[-1] == 0:
+        raise ValueError("s and kappa must be non-empty 1-D or 2-D arrays of the same shape.")
+    ds = np.diff(s, axis=-1)
     if np.any(ds <= 0):
         raise ValueError("s must be strictly increasing.")
-    n = len(s)
+    n = s.shape[-1]
 
     # Pass 1: all the grip goes to cornering.
     with np.errstate(divide="ignore"):
@@ -65,24 +69,24 @@ def three_pass(s, kappa, params: VehicleParams, v_start: float, v_limit=None, re
         v_guess = np.minimum(v_guess, v_limit)
 
     # Pass 2: forward, acceleration limited by what the ellipse and the engine leave.
-    v_forward = np.empty(n)
-    v_forward[0] = min(v_start, v_guess[0])
+    v_forward = np.empty_like(v_guess)
+    v_forward[..., 0] = np.minimum(v_start, v_guess[..., 0])
     for i in range(n - 1):
-        v = v_forward[i]
-        a_x = max_longitudinal(v, v * v * k[i], params, accelerate=True)
-        v_forward[i + 1] = min(v_guess[i + 1], np.sqrt(v * v + 2.0 * a_x * ds[i]))
+        v = v_forward[..., i]
+        a_x = max_longitudinal(v, v * v * k[..., i], params, accelerate=True)
+        v_forward[..., i + 1] = np.minimum(v_guess[..., i + 1], np.sqrt(v * v + 2.0 * a_x * ds[..., i]))
 
     # Pass 3: backward, braking limited by what the ellipse leaves.
     v_final = v_forward.copy()
     for i in range(n - 2, -1, -1):
-        v = v_final[i + 1]
-        a_x = max_longitudinal(v, v * v * k[i + 1], params, accelerate=False)
-        v_final[i] = min(v_forward[i], np.sqrt(v * v + 2.0 * a_x * ds[i]))
+        v = v_final[..., i + 1]
+        a_x = max_longitudinal(v, v * v * k[..., i + 1], params, accelerate=False)
+        v_final[..., i] = np.minimum(v_forward[..., i], np.sqrt(v * v + 2.0 * a_x * ds[..., i]))
 
     return (v_guess, v_forward, v_final) if return_passes else v_final
 
 
-def time_stamps(s, v, t0: float = 0.0) -> np.ndarray:
+def time_stamps(s, v, t0=0.0) -> np.ndarray:
     """
     Time at which the car reaches each station, for uniformly accelerated motion between stations.
 
@@ -91,21 +95,22 @@ def time_stamps(s, v, t0: float = 0.0) -> np.ndarray:
     divided by the mean speed. This form also works when a = 0.
 
     Args:
-        s: array-like of float, shape (N,). Arc length of the stations along the path [m].
-        v: array-like of float, shape (N,). Speed at each station [m/s]; two consecutive
+        s: array-like of float, shape (N,) or (M, N). Arc length of the stations along the path [m].
+        v: array-like of float, same shape as s. Speed at each station [m/s]; two consecutive
            speeds cannot both be zero.
-        t0: float. Time at the first station [s].
+        t0: float, or array-like (M, 1) for a batch. Time at the first station [s].
 
     Returns:
-        t: np.ndarray of float, shape (N,). Time at each station [s]; t[0] = t0.
+        t: np.ndarray of float, same shape as s. Time at each station [s]; t[..., 0] = t0.
     """
     s, v = np.asarray(s, dtype=float), np.asarray(v, dtype=float)
     if s.shape != v.shape:
         raise ValueError("s and v must have the same length.")
-    mean_speed = 0.5 * (v[:-1] + v[1:])
+    mean_speed = 0.5 * (v[..., :-1] + v[..., 1:])
     if np.any(mean_speed <= 0):
         raise ValueError("The car is stopped on a whole segment: the time is not defined.")
-    return t0 + np.concatenate(([0.0], np.cumsum(np.diff(s) / mean_speed)))
+    start = np.zeros(s.shape[:-1] + (1,))
+    return t0 + np.concatenate((start, np.cumsum(np.diff(s, axis=-1) / mean_speed, axis=-1)), axis=-1)
 
 
 def traversal_time(s, v) -> float:
