@@ -1,22 +1,11 @@
 """
-Common interface of the local planners and the helpers they share.
+Shared code for the local planners.
 
-What a local planner does (slides 6a, proposal Section 5):
-- It starts from the global plan of its car (the racing line, racing_line.py) and modifies it near the
-  other cars. A plan is a lateral offset o(s) added to the racing line at the track stations s:
-      d(s) = d_race(s) + o(s)        (slides 6a: r_hat(s) = r(s) + o(s) n(s) + y(s) n(s))
-  The normal is the normal of the track, so the offset is added to the Frenet coordinate d of
-  the racing line and the track limits stay d_min <= d <= d_max (track.py, proposal eq. 1).
-- The path becomes a trajectory with the three-pass speed profile (speed_profile.py). With its time stamps,
-  the collision check against the predicted cars (prediction.py) is a space-time check (slides 6c,
-  proposal eq. 4), and the cost of a plan is the time it needs (proposal 5.2).
-- The horizon grows with the speed: H >= v^2 / (2 a_x_max) + a passing distance (proposal 5.3).
-
-All the candidates of one planning step share the same track stations, so they are stored as
-arrays of shape (M, N) (M candidates, N stations) and their speed profiles are computed in one
-batch.
-
-Conventions: track stations s [m] along the centreline, offsets and d [m] > 0 to the left.
+A local plan is the car's racing line shifted sideways: at each station s ahead of the car we
+add an offset o(s), so d(s) = d_race(s) + o(s). Each candidate path gets a three-pass speed
+profile and time stamps, which lets us check it against the predicted cars in space and time
+and use its travel time as the cost. All candidates of one step are handled together as
+(M, N) arrays (M candidates, N stations).
 """
 
 from __future__ import annotations

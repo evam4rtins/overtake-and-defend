@@ -1,19 +1,9 @@
 """
-Follow planner: the racing line with ACC.
+Follow planner: stay on the racing line and keep a safe distance behind the car ahead (ACC).
 
-It is the Phase 1 opponent and the "stay behind" option of the ego, which every other planner
-keeps in its candidate set so that a decision always exists (proposal 5.2).
-
-- Lateral: the racing line. If the car is off its line (offset o0, e.g. after an aborted pass),
-  it returns with the steepest feasible sigmoid (slides 6a, "re-entry path"); the return is
-  delayed while it would hit a car alongside.
-- Longitudinal: the three-pass speed of the path (speed_profile.py), capped behind the closest car ahead on
-  the racing line, so that the car keeps the ACC spacing t_hw * v + d_offset instead of closing
-  in (slides 6a: "the ego vehicle will never crash, instead it will reduce its own speed
-  according to the preceding obstacle (ACC)").
-- The spacing is measured along the track (in s), which overestimates the real distance on the
-  inside of a tight corner. When the predicted clearance is too small, slower versions of the
-  cap (cap_factors) are tried, and the fastest collision-free one is used.
+It drives the Phase 1 opponent, and it is the "stay behind" option that the other planners
+always keep. If the car is off its line (for example after an aborted pass), it steers back
+smoothly.
 """
 
 from __future__ import annotations

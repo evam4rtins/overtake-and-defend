@@ -1,30 +1,11 @@
 """
-Sigmoid planner, Approach A of the proposal.
+Sigmoid planner (Approach A of the proposal, slides 6a).
 
-Slides 6a (sigmoid-based lateral planner, overtake decision making): at every planning step,
-evaluate the current path, the overtaking paths and the re-entry path, keep those that are
-"within limits and collision free", and publish the one with the minimum cost. The proposal
-(Section 5.2) adapts it to racing:
-
-- Candidate offset from the racing line, built on the current offset o0 of the car:
-      o(s) = o0 + (w - o0) S1(s) - w S2(s)
-  with S1, S2 logistic steps (slides 6a: y(s) = w / (1 + exp(-a (s - c)))): the car moves to
-  the offset w around c1 (exit sigmoid) and comes back to its line around c2 (return sigmoid).
-- Only w (its sign selects the side, its size is bounded by the track) and c1 (where to leave
-  the line) are searched. The steepness a1, a2 is the largest one whose curvature is feasible at
-  the speed (slides 6a: a_max such that rho_hat = rho_max).
-- The return point c2 is the earliest station where re-entering is safe (proposal 3.5): the car
-  is ahead of every car it passes by t_hw * v_other + d_offset. It is found on the "out" path
-  (moved out, not coming back), then the full path is checked; if that fails, c2 is moved
-  further (path -> speed -> time stamps -> check, as in proposal 5.3).
-- Each candidate gets a three-pass speed profile (high curvature becomes a time cost, not an
-  infeasibility) and time stamps, and is checked against the track limits and for space-time
-  clearance against the predicted cars.
-- Cost = time to reach the end of the horizon (the proposal uses time instead of the
-  Cost_v + Cost_o of the slides). "Stay behind with ACC" (the follow planner) is always in the
-  set, so a decision always exists.
-- Hysteresis: a manoeuvre in progress is kept unless another option is faster by `hysteresis`
-  seconds, and a manoeuvre starts only if it beats following by that margin.
+At each step the car tries a set of overtaking paths: move out to a side with a sigmoid,
+pass, then come back to the racing line as soon as it is safely ahead. Paths that leave the
+track or come too close to the other car are dropped, and the fastest remaining one is
+compared with simply following. A small hysteresis keeps the car from switching back and
+forth between options.
 """
 
 from __future__ import annotations
