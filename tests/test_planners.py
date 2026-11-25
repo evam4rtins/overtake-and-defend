@@ -175,7 +175,24 @@ def test_follow_slows_down_behind_a_slower_car(plan):
     mine = planner.plan(obs, {"lead": traj})
     assert planner.decision.n_feasible > 0
     assert trajectory_clearance(mine, P, traj, P) >= 0.5
-    assert np.max(mine.v[mine.s < 200]) <= 40.0 + 1e-6
+    # it may close the gap first, but then it is never faster than the leader (slower in the
+    # corner, where its own grip limits it) and stays behind it
+    end = mine.t > mine.t[0] + 3.0
+    assert np.all(mine.v[end] <= 30.0 + 0.5)
+    gap = 140.0 + 30.0 * (mine.t - mine.t[0]) - mine.s - P.length
+    assert np.all(gap[end] >= planner.t_hw * 30.0 + planner.d_offset)
+
+
+def test_faster_car_far_behind_keeps_its_speed(plan):
+    """ A much faster car 50 m behind is not slowed to the leader's speed straight away. """
+    planner = FollowPlanner()
+    planner.setup(TRACK, P, plan)
+    view, traj = straight_car("lead", 150.0, 30.0, d=float(plan.d_at(150.0)))
+    obs = observation(TRACK, plan, 100.0, v=45.0, others=[view])
+    mine = planner.plan(obs, {"lead": traj})
+    assert mine.v[10] > 44.0                                  # no braking at the start
+    assert trajectory_clearance(mine, P, traj, P) >= 0.5
+    assert abs(mine.v[-1] - 30.0) < 0.5                       # still ends behind, at its speed
 
 
 def test_follow_returns_to_its_line(plan):

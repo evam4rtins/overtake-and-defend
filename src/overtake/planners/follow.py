@@ -91,10 +91,17 @@ class FollowPlanner(LocalPlanner):
         """
         Speed cap that keeps the car behind its leader, at each station [m/s], or None.
 
-        The car copies the predicted speed the leader has a distance Delta further along the
-        track: with the same speed profile shifted by Delta, the distance between the two cars
-        stays Delta. Delta is the ACC spacing (centre to centre) or the current distance if it is
-        smaller; the ACC of the controller then opens the gap progressively.
+        Once the car has caught up, it copies the predicted speed the leader has a distance
+        Delta further along the track: with the same speed profile shifted by Delta, the
+        distance between the two cars stays Delta. Delta is the ACC spacing (centre to centre),
+        or the current distance if it is smaller; the ACC of the controller then opens the gap.
+
+        Before that, the car is free to use its own speed to close the gap: we drive the
+        racing line without any cap, compare our position with the leader's at the same
+        instants, and only apply the cap from the first station where we would come closer
+        than the spacing. The speed profile then brakes just early enough to arrive there at
+        the leader's speed. (Without this, a much faster car far behind would be slowed to the
+        leader's speed straight away.)
         """
         lead = self.leader(f, cars)
         if lead is None:
@@ -102,4 +109,13 @@ class FollowPlanner(LocalPlanner):
         half_lengths = 0.5 * (self.params.length + lead.params.length)
         desired = half_lengths + self.t_hw * race_speed(self.global_plan, f.stations) + self.d_offset
         delta = np.minimum(lead.s_now - f.s0, desired)
-        return lead.speed_at_station(f.stations + delta)
+        cap = lead.speed_at_station(f.stations + delta)
+
+        # where would we catch up if nothing held us back?
+        free = self.evaluate(f, np.zeros(len(f.stations)))
+        gap = lead.station_at(free.t[0]) - f.stations          # centre to centre, same instants
+        too_close = np.flatnonzero(gap < desired)
+        if len(too_close) == 0:
+            return np.full(len(f.stations), np.inf)            # never catches up within the plan
+        k = int(too_close[0])
+        return np.where(np.arange(len(f.stations)) >= k, cap, np.inf)

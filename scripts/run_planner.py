@@ -2,15 +2,28 @@
 Ego with a local planner against an opponent on its racing line.
 
     python scripts/run_planner.py                                   # S0: identical cars, sigmoid planner
-    python scripts/run_planner.py --opponent-scale 0.6 --l-out 300 --s-opp 40 --v0 40
-    python scripts/run_planner.py --brakes 2.0 --gap 2              # braking advantage only
-    python scripts/run_planner.py --planner follow --model bicycle --predictor coordinated_turn
+    python scripts/run_planner.py --grip 1.15 --tau0 0.1            # S1: more lateral grip
+    python scripts/run_planner.py --brakes 1.15 --tau0 0.1          # S2: more braking grip
+    python scripts/run_planner.py --power 1.1 --top-speed 1.05 --l-out 300   # S3: power / top speed
+    python scripts/run_planner.py --dv0 5 --tau0 0.3                # S4: initial speed difference
+    python scripts/run_planner.py --predictor constant_velocity     # S5: imperfect prediction
+    python scripts/run_planner.py --t-hw 0.2 --d-offset 2           # one spacing rule for both cars
+    python scripts/run_planner.py --opponent-scale 0.6 --l-out 300 --s-opp 40 --v0 40   # clear pass (test)
+    python scripts/run_planner.py --planner follow --model bicycle --radius 15 --angle 180
     python scripts/run_planner.py --out results/planner.png         # save the figures
+    python scripts/run_planner.py --opponent-scale 0.6 --l-out 300 --s-opp 40 --v0 40 --gif results/pass.gif
+
+Ego ratios (--grip, --brakes, --power, --top-speed) multiply the baseline car; the opponent keeps
+the baseline unless --opponent-scale is used. The initial gap is given in metres (--gap) or in
+seconds (--tau0). --v0 is only the entry speed of the racing lines; both cars start at the speed
+of their line at their station (+ --dv0 for the ego).
 
 Figure 1: trajectories (with the planning steps where the ego decided to overtake), speeds along
 the track, lateral offsets, gap between the cars and the decisions over time.
 Figure 2 (sigmoid planner): the candidates of the first planning step that chose to overtake,
 feasible or not, and the chosen one.
+--gif: animation of the race (whole track, and a view that follows the ego with both cars to
+scale and the ego's current plan), played in real time.
 """
 
 import argparse
@@ -21,6 +34,7 @@ import numpy as np
 
 from overtake.agents import PlannerAgent, RacingLineAgent
 from overtake.planners import PLANNERS, SigmoidPlanner
+from overtake.planners.base import REENTRY_OFFSET, REENTRY_T_HW
 from overtake.prediction import PREDICTORS
 from overtake.racing_line import racing_line
 from overtake.sim import Car, Simulator, outcome, start_state
@@ -41,6 +55,89 @@ class RecordingSigmoid(SigmoidPlanner):
         return traj
 
 
+def keep_plans(planner):
+    """ Wrap planner.plan so that every published plan is kept as (t, trajectory, kind), for the gif. """
+    plans, plan = [], planner.plan
+
+    def recording_plan(obs, predictions):
+        traj = plan(obs, predictions)
+        plans.append((obs.t, traj, planner.decision.kind if planner.decision else "follow"))
+        return traj
+
+    planner.plan = recording_plan
+    return plans
+
+
+def car_outline(x, y, psi, params):
+    """ Corners of the car rectangle (closed polygon), for drawing. """
+    hl, hw = params.length / 2, params.width / 2
+    corners = np.array([[hl, hw], [-hl, hw], [-hl, -hw], [hl, -hw], [hl, hw]])
+    c, s = np.cos(psi), np.sin(psi)
+    return x + c * corners[:, 0] - s * corners[:, 1], y + s * corners[:, 0] + c * corners[:, 1]
+
+
+def save_gif(path, track, result, plans, ego_params, opp_params, fps=10, window=70.0):
+    """
+    Animation of the race: the whole track on the left, a view that follows the ego on the right
+    (both cars drawn to scale, their recent path and the ego's current plan). One frame every
+    1 / fps seconds of simulation, so the gif plays in real time.
+    """
+    from matplotlib.animation import FuncAnimation, PillowWriter
+
+    e, op = result.cars["ego"], result.cars["opponent"]
+    n = min(len(e["t"]), len(op["t"]))
+    dt = float(e["t"][1] - e["t"][0])
+    frames = np.arange(0, n, max(round(1.0 / (fps * dt)), 1))
+    left, right = track.bounds()
+    plan_times = np.array([t for t, _, _ in plans])
+
+    fig, (ax_all, ax_zoom) = plt.subplots(1, 2, figsize=(12, 5.5), gridspec_kw={"width_ratios": [1, 1.4]})
+    for ax in (ax_all, ax_zoom):
+        ax.plot(*left, "k", lw=1)
+        ax.plot(*right, "k", lw=1)
+        ax.set_aspect("equal")
+    ax_all.set_title("Track")
+    ax_all.set_xticks([])
+    ax_all.set_yticks([])
+    dot_o, = ax_all.plot([], [], "o", color="tab:blue", ms=5)
+    dot_e, = ax_all.plot([], [], "o", color="tab:red", ms=5)
+
+    trail_o, = ax_zoom.plot([], [], color="tab:blue", lw=1, alpha=0.5)
+    trail_e, = ax_zoom.plot([], [], color="tab:red", lw=1, alpha=0.5)
+    plan_line, = ax_zoom.plot([], [], "--", color="tab:red", lw=1.2, label="ego plan")
+    body_o, = ax_zoom.fill([], [], color="tab:blue", label="opponent")
+    body_e, = ax_zoom.fill([], [], color="tab:red", label="ego")
+    ax_zoom.legend(loc="upper right", fontsize=8)
+    info = ax_zoom.text(0.02, 0.98, "", transform=ax_zoom.transAxes, va="top", family="monospace", fontsize=9,
+                        bbox={"facecolor": "white", "alpha": 0.8, "edgecolor": "none"})
+    fig.tight_layout()
+
+    def draw(k):
+        dot_o.set_data([op["x"][k]], [op["y"][k]])
+        dot_e.set_data([e["x"][k]], [e["y"][k]])
+        start = max(k - int(3.0 / dt), 0)                      # last 3 s of path
+        trail_o.set_data(op["x"][start:k + 1], op["y"][start:k + 1])
+        trail_e.set_data(e["x"][start:k + 1], e["y"][start:k + 1])
+        body_o.set_xy(np.column_stack(car_outline(op["x"][k], op["y"][k], op["psi"][k], opp_params)))
+        body_e.set_xy(np.column_stack(car_outline(e["x"][k], e["y"][k], e["psi"][k], ego_params)))
+        kind = ""
+        if len(plans):
+            i = max(int(np.searchsorted(plan_times, e["t"][k], side="right")) - 1, 0)
+            _, traj, kind = plans[i]
+            plan_line.set_data(traj.x, traj.y)
+        ax_zoom.set_xlim(e["x"][k] - window / 2, e["x"][k] + window / 2)
+        ax_zoom.set_ylim(e["y"][k] - window / 3, e["y"][k] + window / 3)
+        info.set_text(f"t = {e['t'][k]:5.2f} s   decision: {kind}\n"
+                      f"v ego {e['v'][k]:5.1f} m/s   v opp {op['v'][k]:5.1f} m/s\n"
+                      f"s_ego - s_opp = {e['s'][k] - op['s'][k]:6.1f} m")
+        return dot_o, dot_e, trail_o, trail_e, body_o, body_e, plan_line, info
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    FuncAnimation(fig, draw, frames=frames, blit=False).save(path, writer=PillowWriter(fps=fps), dpi=80)
+    plt.close(fig)
+    print(f"Saved {path} ({len(frames)} frames)")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--radius", type=float, default=40.0)
@@ -53,32 +150,60 @@ def main():
     parser.add_argument("--brakes", type=float, default=1.0, help="braking grip ratio of the ego")
     parser.add_argument("--grip", type=float, default=1.0, help="lateral grip ratio of the ego")
     parser.add_argument("--power", type=float, default=1.0, help="engine ratio of the ego")
+    parser.add_argument("--top-speed", type=float, default=1.0, help="top speed ratio of the ego")
     parser.add_argument("--opponent-scale", type=float, default=1.0, help="all opponent parameters x this ratio")
     parser.add_argument("--gap", type=float, default=5.0, help="initial bumper-to-bumper gap [m]")
+    parser.add_argument("--tau0", type=float, default=None,
+                        help="initial time gap [s]; replaces --gap (gap = tau0 x opponent speed)")
+    parser.add_argument("--dv0", type=float, default=0.0, help="the ego starts this much faster than its racing line [m/s]")
     parser.add_argument("--s-opp", type=float, default=80.0, help="initial station of the opponent [m]")
     parser.add_argument("--v0", type=float, default=50.0, help="entry speed used for the racing lines [m/s]")
+    parser.add_argument("--t-hw", type=float, default=None,
+                        help="ACC and re-entry time headway [s], used by both cars, the planner and the success criterion")
+    parser.add_argument("--d-offset", type=float, default=None, help="ACC and re-entry standstill distance [m], same")
     parser.add_argument("--out", type=Path, default=None, help="save the figures (second one gets '_candidates')")
+    parser.add_argument("--gif", type=Path, default=None, help="also save an animation of the race to this .gif file")
+    parser.add_argument("--gif-fps", type=float, default=10.0, help="frames per second of the gif (real time)")
     args = parser.parse_args()
 
     track = CornerTrack(args.l_in, args.radius, args.angle, args.l_out)
     base = VehicleParams()
     r = args.opponent_scale
     opp_params = base.scaled(a_y_max=r, a_x_max=r, a_engine=r, v_max=r)
-    ego_params = base.scaled(a_x_max=args.brakes, a_y_max=args.grip, a_engine=args.power)
+    ego_params = base.scaled(a_x_max=args.brakes, a_y_max=args.grip, a_engine=args.power, v_max=args.top_speed)
     plan_o, plan_e = racing_line(track, opp_params, args.v0), racing_line(track, ego_params, args.v0)
-    s_ego = args.s_opp - args.gap - ego_params.length
+
+    # start: the opponent on its racing line at s_opp, the ego behind it (gap in metres or in seconds)
+    v_opp = float(np.interp(args.s_opp, plan_o.s, plan_o.trajectory.v))
+    gap = args.gap if args.tau0 is None else args.tau0 * v_opp
+    s_ego = args.s_opp - gap - ego_params.length
+    v_ego = float(np.interp(s_ego, plan_e.s, plan_e.trajectory.v)) + args.dv0
+
+    # one spacing rule for everything if --t-hw or --d-offset is given, otherwise the code defaults
+    # (opponent ACC 0.6 s + 5 m; ego, planner and success criterion 0.3 s + 2 m)
+    if args.t_hw is None and args.d_offset is None:
+        opp_rule, ego_rule = {}, {}
+        t_hw, d_offset = REENTRY_T_HW, REENTRY_OFFSET
+    else:
+        t_hw = REENTRY_T_HW if args.t_hw is None else args.t_hw
+        d_offset = REENTRY_OFFSET if args.d_offset is None else args.d_offset
+        opp_rule = ego_rule = {"t_hw": t_hw, "d_offset": d_offset}
+
     Model = MODELS[args.model]
-    planner = RecordingSigmoid() if args.planner == "sigmoid" else PLANNERS[args.planner]()
-    agent = PlannerAgent(planner, predictor=PREDICTORS[args.predictor](horizon=10.0))
-    cars = [Car("opponent", opp_params, Model(opp_params), RacingLineAgent(),
-                start_state(track, args.s_opp, plan_o.d_at(args.s_opp), float(np.interp(args.s_opp, plan_o.s, plan_o.trajectory.v))), plan_o),
+    planner = RecordingSigmoid(**ego_rule) if args.planner == "sigmoid" else PLANNERS[args.planner](**ego_rule)
+    plans = keep_plans(planner) if args.gif else []
+    agent = PlannerAgent(planner, predictor=PREDICTORS[args.predictor](horizon=10.0), **ego_rule)
+    cars = [Car("opponent", opp_params, Model(opp_params), RacingLineAgent(**opp_rule),
+                start_state(track, args.s_opp, plan_o.d_at(args.s_opp), v_opp), plan_o),
             Car("ego", ego_params, Model(ego_params), agent,
-                start_state(track, s_ego, plan_e.d_at(s_ego), float(np.interp(s_ego, plan_e.s, plan_e.trajectory.v))), plan_e)]
+                start_state(track, s_ego, plan_e.d_at(s_ego), v_ego), plan_e)]
     result = Simulator(track, cars).run()
-    o = outcome(result)
+    o = outcome(result, reentry_t_hw=t_hw, reentry_offset=d_offset)
     print(o)
     kinds = [d.kind for _, d in agent.decisions]
     print(f"{len(kinds)} planning steps, {kinds.count('overtake')} chose to overtake")
+    if args.gif:
+        save_gif(args.gif, track, result, plans, ego_params, opp_params, fps=args.gif_fps)
 
     e, op = result.cars["ego"], result.cars["opponent"]
     fig, axes = plt.subplots(2, 3, figsize=(18, 10), constrained_layout=True)
@@ -122,8 +247,11 @@ def main():
     ax_info.axis("off")
     ax_info.text(0.0, 1.0, "\n".join([
         f"planner: {args.planner}, model: {args.model}, predictor: {args.predictor}",
-        f"ego: brakes x{args.brakes:g}, grip x{args.grip:g}, power x{args.power:g}; opponent x{r:g}",
-        f"initial gap {args.gap:g} m, corner R = {args.radius:g} m, {args.angle:g} deg, L_out = {args.l_out:g} m", "",
+        (f"ego: brakes x{args.brakes:g}, grip x{args.grip:g}, power x{args.power:g}, "
+         f"top speed x{args.top_speed:g}; opponent x{r:g}"),
+        (f"initial gap {gap:.1f} m ({gap / v_opp:.2f} s), dv0 {args.dv0:g} m/s; "
+         f"spacing {'0.6 s + 5 m / 0.3 s + 2 m (defaults)' if not ego_rule else f'{t_hw:g} s + {d_offset:g} m'}"),
+        f"corner R = {args.radius:g} m, {args.angle:g} deg, L_out = {args.l_out:g} m", "",
         f"success: {o.success}   overtook: {o.overtook}   safe re-entry: {o.safe_reentry}",
         f"collision: {o.collision}   off track: {result.off_track}",
         f"margin t_opp - t_ego: {o.margin if o.margin is None else round(o.margin, 2)} s",
